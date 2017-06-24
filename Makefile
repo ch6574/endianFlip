@@ -1,5 +1,5 @@
 # Compiler flags
-CC			= g++
+CC			= g++ -std=c++11
 CXXFLAGS	= -Wall -Wextra 
 
 # The target and sources

@@ -15,24 +15,39 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *******************************************************************************/
 
-// Tooling for dealing with sparc64 endian issues
-
+// Tooling for dealing with endian issues (e.g. x86 to/from sparc64)
 #ifndef SPARC_ENDIAN_TOOLS_H
 #define SPARC_ENDIAN_TOOLS_H
+
+#if __GNUC__ && __cplusplus
+#include <endian.h> // htobeNN() and beNNtoh()
+#include <cstdint>  // uintNN_t
+#include <cstddef>  // size_t
 
 #include <iostream>
 #include <iomanip>
 
-// Object hex dumper
+// The target is sparc64, so we must assert these are true, else we need extra logic!
+#if __SIZEOF_INT__ != 4 || __SIZEOF_FLOAT__ != 4 || __SIZEOF_DOUBLE__ != 8
+#error "This code only works for 4byte / 32bit integers and floats; 8byte / 64bit doubles"
+#endif
+
+#if !defined __WORDSIZE && defined __sparcv9
+#define __WORDSIZE 64 // Sun Studio doesn't define this
+#elif !defined __WORDSIZE && defined __sparc
+#define __WORDSIZE 32
+#endif
+
+/*
+ * Object hex pretty printer / hex dumper. Writes to cout (or supplied stream)
+ */
 template<typename T>
-inline void printAsHex(const T& data, std::ostream& os = std::cout)
-{
+inline void printAsHex(const T& data, std::ostream& os = std::cout) {
 	const unsigned char* p = reinterpret_cast<const unsigned char*>(&data);
 
 	os << "Bytes: [:";
 	size_t j = 0;
-	for (size_t i = 0; i < sizeof(T); i++)
-	{
+	for (size_t i = 0; i < sizeof(T); i++) {
 		os << std::hex << std::setfill('0') << std::setw(2)
 				<< static_cast<unsigned>(p[i]) << " ";
 		if (++j % (__WORDSIZE / 8) == 0 && j < sizeof(T))
@@ -41,68 +56,42 @@ inline void printAsHex(const T& data, std::ostream& os = std::cout)
 	os << "]" << std::endl;
 }
 
-#include <endian.h>
-#include <stdint.h>
+// We will template the conversion code to reduce the repetition
+template<size_t N> struct SizeT {
+};
 
-// The target is sparc64, so we must assert these are true, else we need extra logic!
-#if __SIZEOF_INT__ != 4 || __SIZEOF_FLOAT__ != 4 || __SIZEOF_DOUBLE__ != 8
-#error "This code only works for 4byte / 32bit integers and floats; 8byte / 64bit doubles"
+/*
+ * These are the in-line converters which automatically know the respective size specific converter to call
+ */
+template<typename T> inline void toSparc64Endian(T& t) {
+	htobe(&t, SizeT<sizeof t>());
+}
+
+template<typename T> inline void fromSparc64Endian(T& t) {
+	betoh(&t, SizeT<sizeof t>());
+}
+
+/*
+ * Utility code for the different sized primitives
+ */
+#define BYTESWAPS(bits)\
+template<typename T> inline void htobe(T* t, const SizeT<bits/8>) {\
+	const uint##bits##_t converted = htobe##bits(*reinterpret_cast<uint##bits##_t*>(t));\
+	const char* foo = reinterpret_cast<const char*>(&converted);\
+	*t = *reinterpret_cast<const T*>(foo);\
+}\
+template<typename T> inline void betoh(T* t, const SizeT<bits/8>) {\
+	const uint##bits##_t converted = be##bits##toh(*reinterpret_cast<uint##bits##_t*>(t));\
+	const char* foo = reinterpret_cast<const char*>(&converted);\
+	*t = *reinterpret_cast<const T*>(foo);\
+}
+
+BYTESWAPS(16)
+BYTESWAPS(32)
+BYTESWAPS(64)
+
+#undef BYTESWAPS
+
 #endif
-
-// Sun Studio compiler struct alignment
-#define SUN_STUDIO_ALIGNMENT 8
-
-// Union to 'cast' the memory
-union CONV8
-{
-	uint64_t i;
-	double d;
-};
-
-union CONV4
-{
-	uint32_t i;
-	float f;
-};
-
-// Swap byte order (on little endian machines)
-inline void intToSparc64Endian(int& data)
-{
-	data = htobe32(data);
-}
-inline void intFromSparc64Endian(int& data)
-{
-	data = be32toh(data);
-}
-
-inline void floatToSparc64Endian(float& data)
-{
-	CONV4 conv;
-	conv.f = data;
-	conv.i = htobe32(conv.i);
-	data = conv.f;
-}
-inline void floatFromSparc64Endian(float& data)
-{
-	CONV4 conv;
-	conv.f = data;
-	conv.i = be32toh(conv.i);
-	data = conv.f;
-}
-
-inline void doubleToSparc64Endian(double& data)
-{
-	CONV8 conv;
-	conv.d = data;
-	conv.i = htobe32(conv.i);
-	data = conv.d;
-}
-inline void doubleFromSparc64Endian(double& data)
-{
-	CONV8 conv;
-	conv.d = data;
-	conv.i = be32toh(conv.i);
-	data = conv.d;
-}
 
 #endif

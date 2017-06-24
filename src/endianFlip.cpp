@@ -16,47 +16,32 @@
  *******************************************************************************/
 
 // Demo of tooling for dealing with sparc64 endian issues
-
+#include <SparcEndianTools.H>
 #include <iostream>
-#include "SparcEndianTools.H"
 
 // A typical use case, a struct dumped out onto the wire as a binary message
-// Note the GCC alignment attribute regarding minimum memory layout
-typedef struct
-{
+typedef struct {
 	char foo[6];
 	int a;
 	float b;
 	double c;
-}
-#if __GNUC__
-__attribute__ ((aligned(SUN_STUDIO_ALIGNMENT)))
-#endif
-EXAMPLE_DATA;
+} EXAMPLE_DATA;
 
 // Helper methods
-void convertToSparcEndian(EXAMPLE_DATA& data)
-{
-	intToSparc64Endian(data.a);
-	floatToSparc64Endian(data.b);
-	doubleToSparc64Endian(data.c);
+void convertToSparcEndian(EXAMPLE_DATA& data) {
+	toSparc64Endian(data.a);
+	toSparc64Endian(data.b);
+	toSparc64Endian(data.c);
 }
-void convertFromSparcEndian(EXAMPLE_DATA& data)
-{
-	intFromSparc64Endian(data.a);
-	floatFromSparc64Endian(data.b);
-	doubleFromSparc64Endian(data.c);
+void convertFromSparcEndian(EXAMPLE_DATA& data) {
+	fromSparc64Endian(data.a);
+	fromSparc64Endian(data.b);
+	fromSparc64Endian(data.c);
 }
 
-int main()
-{
+int main() {
 	// Fill up some test data
-	EXAMPLE_DATA myData = {
-			{"HI!"},
-			123,
-			12345.6789,
-			12345.6789,
-	};
+	EXAMPLE_DATA myData = { { "HI!" }, 123, 12345.6789, 12345.6789, };
 
 	printAsHex(myData);
 
